@@ -1,6 +1,17 @@
 # Dictation Tools
 
-These scripts provide a convenient way to use [nerd-dictation](https://github.com/ideasman42/nerd-dictation) for natural speech-to-text on Linux, with additional tools for cleaning up dictated text using OpenAI.
+These scripts provide a convenient way to use [nerd-dictation](https://github.com/ideasman42/nerd-dictation) for natural speech-to-text on Linux, with additional tools for cleaning up dictated text using OpenAI. Think of it as a Linux alternative to [Wispr Flow](https://wisprflow.ai/), which currently doesn't support Linux systems.
+
+## Why I Created This
+
+I created these tools to make speech-to-text dictation more practical and seamless for my daily workflow:
+
+- **Keyboard-driven workflow**: I needed easy keyboard shortcuts to start and stop dictation without disrupting my focus
+- **Desktop notifications**: Clear visual feedback when dictation is active or stopped
+- **Easy text cleanup**: When dictation isn't perfect, I wanted a simple way to select and clean up text using more powerful LLMs but also preserve my natural tone
+- **Better integration**: Works smoothly with applications like Cursor and other text editors
+- **Optimized performance**: Initialize the heavy speech model once at startup, then enjoy faster dictation throughout your session
+- **Privacy-focused**: All speech processing happens locally on your computer - no audio sent to the cloud
 
 ## Requirements
 
@@ -106,12 +117,13 @@ Before setting up, ensure you have the following installed:
 - **Punctuation**: Automatic punctuation based on pauses
 - **Fast operation**: Using suspend/resume for quick dictation without reloading the model
 
-### Cleanup Features (via OpenAI)
+### Cleanup Features (via OpenAI GPT-3.5 Turbo)
 - **Grammar correction**: Fixes grammar issues in dictated text
 - **Punctuation correction**: Adds or fixes punctuation
 - **Paragraph formatting**: Creates paragraphs for better readability
 - **Spelling correction**: Fixes spelling errors based on context
 - **Australian English**: Uses Australian spelling conventions
+- **Preserves your voice**: Maintains your natural tone and style while fixing technical issues
 
 ## Files
 
@@ -121,3 +133,10 @@ Before setting up, ensure you have the following installed:
 - `stop-dictation.sh`: Stops/suspends dictation (use ONLY via keyboard shortcut)
 - `cleanup-dictation.py`: Cleans up selected text using OpenAI (use ONLY via keyboard shortcut)
 - `.env.template`: Template for OpenAI API key configuration. Copy and create `.env`
+
+## Future Plans
+
+- The cleanup functionality currently uses GPT-3.5 Turbo, which provides excellent results without requiring more expensive models
+- Future versions may include integration with [OpenRouter](https://openrouter.ai/) to offer more model options and flexibility
+- Building more advanced prompts and model selection options for different cleanup styles and languages
+- Building evals and ensure quality control of the prompts and model outputs
