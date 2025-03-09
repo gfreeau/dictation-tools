@@ -1,0 +1,22 @@
+# Configuration files with sensitive information
+dictation.conf
+.env
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Log files
+logs/
+*.log
+
+# Environment directories
+venv/
+env/
+.venv/
+.env/
+
+# OS specific files
+.DS_Store
+Thumbs.db 
