@@ -93,15 +93,21 @@ Before setting up, ensure you have the following installed:
    ```
    This loads the speech model and immediately suspends, ready for fast dictation. This is just an initialisation command you could set to run on boot. It needs to be run before dictation will work.
 
-2. **Start dictating** (press your configured keyboard shortcut - do NOT run the script directly):
+2. **Check if dictation is ready** (optional but recommended for large models):
+   ```
+   ./check-dictation-ready.sh
+   ```
+   This monitors the initialization process and notifies you when the speech model is fully loaded and ready to use. The script automatically detects the running dictation process without requiring any additional parameters.
+
+3. **Start dictating** (press your configured keyboard shortcut - do NOT run the script directly):
    Press your configured shortcut (e.g., F9) to start dictation.
    Speak naturally into your microphone.
 
-3. **End dictation** (press your configured keyboard shortcut - do NOT run the script directly):
+4. **End dictation** (press your configured keyboard shortcut - do NOT run the script directly):
    Press your configured shortcut (e.g., F10) to end dictation.
    This processes the text and inserts it at your cursor position.
 
-4. **Clean up dictated text** (optional):
+5. **Clean up dictated text** (optional):
    1. Select text with your mouse
    2. Press your configured shortcut (e.g., Ctrl+Alt+C) - do NOT run the script directly
    3. The selected text will be replaced with cleaned-up text via OpenAI
@@ -129,6 +135,7 @@ Before setting up, ensure you have the following installed:
 
 - `dictation.conf.template`: Template configuration file for paths and shortcuts. Copy and create `dictation.conf`
 - `init-dictation.sh`: Initializes the dictation system (run directly)
+- `check-dictation-ready.sh`: Monitors the initialization process and notifies when the speech model is ready (run directly)
 - `start-dictation.sh`: Starts/resumes dictation (use ONLY via keyboard shortcut)
 - `stop-dictation.sh`: Stops/suspends dictation (use ONLY via keyboard shortcut)
 - `cleanup-dictation.py`: Cleans up selected text using OpenAI (use ONLY via keyboard shortcut)

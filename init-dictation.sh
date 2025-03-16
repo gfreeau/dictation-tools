@@ -36,13 +36,19 @@ $NERD_DICTATION begin \
   --numbers-as-digits \
   --numbers-use-separator \
   --numbers-min-value=2 \
-  --punctuate-from-previous-timeout=2.0 \
+  --punctuate-from-previous-timeout=0 \
   --verbose=2 \
   --suspend-on-start > "$LOG_FILE" 2>&1 &
 
-# Store the PID of the background process
+# Log the PID but don't store it in a file since we can detect it automatically
 DICTATION_PID=$!
 echo "Nerd-dictation started with PID: $DICTATION_PID" | tee -a "$LOG_FILE"
 
-echo "Dictation initialized and suspended. Use start-dictation.sh to start dictating."
-echo "Check logs at: $LOG_FILE" 
+echo "Dictation process started. Speech model is now loading..."
+echo "Check logs at: $LOG_FILE"
+echo ""
+echo "IMPORTANT: For large models, the initialization may take time."
+echo "To monitor when the speech model is fully loaded, run:"
+echo "  ./check-dictation-ready.sh"
+echo ""
+echo "Once the model is loaded, use start-dictation.sh to begin dictating." 
