@@ -1,129 +1,157 @@
 # Dictation Tools
 
-These scripts provide a convenient way to use [nerd-dictation](https://github.com/ideasman42/nerd-dictation) for natural speech-to-text on Linux, with additional tools for cleaning up dictated text using OpenAI. Think of it as a Linux alternative to [Wispr Flow](https://wisprflow.ai/), which currently doesn't support Linux systems.
+These scripts provide a convenient way to use speech-to-text dictation on Linux, with additional tools for cleaning up dictated text using OpenAI. Think of it as a Linux alternative to [Wispr Flow](https://wisprflow.ai/), which currently doesn't support Linux systems.
 
 ## Why I Created This
 
 I created these tools to make speech-to-text dictation more practical and seamless for my daily workflow:
 
-- **Keyboard-driven workflow**: I needed easy keyboard shortcuts to start and stop dictation without disrupting my focus
+- **Keyboard-driven workflow**: Easy keyboard shortcuts to start and stop dictation without disrupting focus
 - **Desktop notifications**: Clear visual feedback when dictation is active or stopped
-- **Easy text cleanup**: When dictation isn't perfect, I wanted a simple way to select and clean up text using more powerful LLMs but also preserve my natural tone
+- **Easy text cleanup**: When dictation isn't perfect, a simple way to select and clean up text while preserving natural tone
 - **Better integration**: Works smoothly with applications like Cursor and other text editors
-- **Optimized performance**: Initialize the heavy speech model once at startup, then enjoy faster dictation throughout your session
-- **Privacy-focused**: All speech processing happens locally on your computer - no audio sent to the cloud
+- **Multiple engine options**: Use either local (Vosk) or cloud (Whisper) transcription based on your needs
+- **Context-aware cleanup**: Special handling for code and technical terms when in Cursor IDE
 
-## Requirements
+## Two Dictation Engines – Choose Your Preferred Method
 
-Before setting up, ensure you have the following installed:
+This repository ships with **two completely separate dictation engines** that you can benchmark against each other:
+
+| Engine | Processing | Model | Hot-key Scripts | Init Required? |
+| ------ | ---------- | ----- | --------------- | -------------- |
+| **nerd-dictation / Vosk** | ✅ 100% local | Vosk acoustic model | `start-dictation.sh` / `stop-dictation.sh` | Yes (`init-dictation.sh`) |
+| **Whisper (OpenAI API)** | ☁️ Cloud API | OpenAI Whisper | `start-whisper-dictation.sh` / `stop-whisper-dictation.sh` | No |
+
+Both flows share the same cleaning pipeline and use GPT-4.1 Nano for text refinement. This allows for direct comparison of transcription quality, latency, and usability.
+
+## Common Requirements (Both Methods)
 
 - **System packages**:
   ```
   sudo apt install xdotool xclip python3-pip notify-send
   ```
 
-- **Python packages** (or use the provided requirements.txt):
+- **Python packages**:
   ```
   pip install openai python-dotenv
   ```
 
-- **[nerd-dictation](https://github.com/ideasman42/nerd-dictation)** - First, follow the complete installation instructions from the nerd-dictation repository:
+- **OpenAI API key**:
+  Create a `.env` file with your OpenAI API key (used for cleanup and Whisper):
+  ```
+  cp .env.template .env
+  nano .env
+  ```
+  Replace "your_api_key_here" with your actual OpenAI API key.
+
+- **Make scripts executable**:
+  ```
+  chmod +x *.sh *.py
+  ```
+
+## Method 1: Local Dictation with nerd-dictation (Vosk)
+
+### Additional Requirements
+
+- **[nerd-dictation](https://github.com/ideasman42/nerd-dictation)**: 
   ```
   git clone https://github.com/ideasman42/nerd-dictation.git
   cd nerd-dictation
-  pip3 install vosk  # Required by nerd-dictation
+  pip3 install vosk
   ```
-  **IMPORTANT**: Complete ALL the installation steps in the [nerd-dictation README](https://github.com/ideasman42/nerd-dictation#install) before proceeding with this setup.
+  **IMPORTANT**: Complete ALL the installation steps in the [nerd-dictation README](https://github.com/ideasman42/nerd-dictation#install).
 
 - **Vosk speech model** - Download from [alphacephei.com/vosk/models](https://alphacephei.com/vosk/models)
-  - Minimum recommended: [vosk-model-en-us-0.22-lgraph](https://alphacephei.com/vosk/models/vosk-model-en-us-0.22-lgraph.zip) (128M)
-  - For better accuracy: [vosk-model-en-us-0.42-gigaspeech](https://alphacephei.com/vosk/models/vosk-model-en-us-0.42-gigaspeech.zip) (2.3GB)
+  - Minimum: [vosk-model-en-us-0.22-lgraph](https://alphacephei.com/vosk/models/vosk-model-en-us-0.22-lgraph.zip) (128M)
+  - Better accuracy: [vosk-model-en-us-0.42-gigaspeech](https://alphacephei.com/vosk/models/vosk-model-en-us-0.42-gigaspeech.zip) (2.3GB)
 
-## Setup
+### Setup
 
-1. **Verify nerd-dictation works first**: Before proceeding, make sure you can run nerd-dictation successfully on its own following their [installation instructions](https://github.com/ideasman42/nerd-dictation#install).
-
-2. Make all scripts executable:
-   ```
-   chmod +x *.sh *.py
-   ```
-
-3. Create a configuration file by copying the template:
+1. Create a configuration file:
    ```
    cp dictation.conf.template dictation.conf
    ```
 
-4. Edit the configuration file to match your setup:
+2. Edit the configuration file:
    ```
    nano dictation.conf
    ```
-   
-   Configure the following:
+   Configure:
    - `NERD_DICTATION_PATH`: Path to the nerd-dictation executable
    - `VOSK_MODEL_DIR`: Path to your extracted Vosk model directory
-   - `START_DICTATION_KEY` and `STOP_DICTATION_KEY`: if you want your keyboard shortcuts showing up in notifications
+   - `START_DICTATION_KEY` and `STOP_DICTATION_KEY`: for notifications
 
-5. If you haven't already downloaded a Vosk model during nerd-dictation setup, download and extract one now:
-   ```
-   wget https://alphacephei.com/vosk/models/vosk-model-en-us-0.42-gigaspeech.zip
-   unzip vosk-model-en-us-0.42-gigaspeech.zip
-   ```
-   Then update the `VOSK_MODEL_DIR` in your dictation.conf to point to this directory.
+3. Bind keyboard shortcuts:
+   - `start-dictation.sh` → F9
+   - `stop-dictation.sh` → F10
 
-6. For the cleanup-dictation.py script (which uses OpenAI's API), create a .env file with your OpenAI API key:
-   ```
-   cp .env.template .env
-   nano .env
-   ```
-   Replace "your_api_key_here" with your actual OpenAI API key.
+### Usage
 
-7. **REQUIRED**: Set up keyboard shortcuts in your desktop environment
-   This step is **mandatory** - the tools are designed to be used via keyboard shortcuts:
-   - Assign `start-dictation.sh` to a key like F9
-   - Assign `stop-dictation.sh` to a key like F10
-   - Assign `cleanup-dictation.py` to a key like Ctrl+Alt+C
-
-## Usage
-
-### Basic Workflow
-
-1. **Initialize dictation** (run once at the beginning of your session):
+1. **Initialize dictation** (run once per session):
    ```
    ./init-dictation.sh
    ```
-   This loads the speech model and immediately suspends, ready for fast dictation. This is just an initialisation command you could set to run on boot. It needs to be run before dictation will work.
+   This loads the speech model and suspends it, ready for fast dictation.
 
 2. **Check if dictation is ready** (optional but recommended for large models):
    ```
    ./check-dictation-ready.sh
    ```
-   This monitors the initialization process and notifies you when the speech model is fully loaded and ready to use. The script automatically detects the running dictation process without requiring any additional parameters.
+   This monitors the initialization process and notifies you when the model is fully loaded.
 
-3. **Start dictating** (press your configured keyboard shortcut - do NOT run the script directly):
-   Press your configured shortcut (e.g., F9) to start dictation.
-   Speak naturally into your microphone.
+3. **Start dictation**: Press F9 (or your configured key)
+4. **Stop dictation**: Press F10 (or your configured key)
 
-4. **End dictation** (press your configured keyboard shortcut - do NOT run the script directly):
-   Press your configured shortcut (e.g., F10) to end dictation.
-   This processes the text and inserts it at your cursor position.
+## Method 2: Cloud Dictation with OpenAI Whisper
 
-5. **Clean up dictated text** (optional):
-   1. Select text with your mouse
-   2. Press your configured shortcut (e.g., Ctrl+Alt+C) - do NOT run the script directly
-   3. The selected text will be replaced with cleaned-up text via OpenAI
+### Additional Requirements
 
-## Features
+- **ffmpeg**:
+  ```
+  sudo apt install ffmpeg
+  ```
 
-### Dictation Features
-- **Configurable paths**: Easy setup through dictation.conf
-- **High-quality speech model**: Using Vosk models for superior accuracy
-- **Full sentence capitalization**: First word of sentences is capitalized
-- **Numbers as digits**: Numbers are converted to digits (e.g., "twenty three" becomes "23")
-- **Number separators**: Large numbers use comma separators (e.g., "one thousand" becomes "1,000")
-- **Punctuation**: Automatic punctuation based on pauses
-- **Fast operation**: Using suspend/resume for quick dictation without reloading the model
+### Setup
 
-### Cleanup Features (via OpenAI GPT-3.5 Turbo)
+1. Make the scripts executable:
+   ```
+   chmod +x start-whisper-dictation.sh stop-whisper-dictation.sh whisper_dictation.py
+   ```
+
+2. Optional configuration:
+   ```bash
+   export WHISPER_TEMP_DIR=$HOME/tmp/whisper    # Change temp recording directory
+   export WHISPER_CLEANUP=false                 # Disable GPT cleanup (raw Whisper output)
+   ```
+
+3. Bind keyboard shortcuts:
+   - `start-whisper-dictation.sh` → F7
+   - `stop-whisper-dictation.sh` → F8
+
+### Usage
+
+1. **Start Whisper dictation**: Press F7 (or your configured key)
+2. **Stop Whisper dictation**: Press F8 (or your configured key)
+
+That's it! No initialization step is needed as recordings are sent directly to the OpenAI API.
+
+## Special Features of the Whisper Flow
+
+* **Cursor-aware spelling fixes** – Automatically detects if your active window belongs to the Cursor IDE and adds extra context to the cleanup prompt:
+  > "We are in Cursor … likely talking about programming or technology. Correct technical terms such as Supabase, PostgreSQL …"
+* **No model download needed** – Audio processing happens in the cloud, so startup is instant
+* **Simplified workflow** – No initialization required
+
+## Text Cleanup (Common to Both Methods)
+
+Both dictation methods can benefit from additional text cleanup:
+
+1. Select text with your mouse
+2. Press your configured shortcut (e.g., Ctrl+Alt+C)
+3. The selected text will be replaced with cleaned-up text via GPT-4.1 Nano
+
+### Cleanup Features
+
 - **Grammar correction**: Fixes grammar issues in dictated text
 - **Punctuation correction**: Adds or fixes punctuation
 - **Paragraph formatting**: Creates paragraphs for better readability
@@ -131,19 +159,26 @@ Before setting up, ensure you have the following installed:
 - **Australian English**: Uses Australian spelling conventions
 - **Preserves your voice**: Maintains your natural tone and style while fixing technical issues
 
-## Files
+## Files Overview
 
-- `dictation.conf.template`: Template configuration file for paths and shortcuts. Copy and create `dictation.conf`
-- `init-dictation.sh`: Initializes the dictation system (run directly)
-- `check-dictation-ready.sh`: Monitors the initialization process and notifies when the speech model is ready (run directly)
-- `start-dictation.sh`: Starts/resumes dictation (use ONLY via keyboard shortcut)
-- `stop-dictation.sh`: Stops/suspends dictation (use ONLY via keyboard shortcut)
-- `cleanup-dictation.py`: Cleans up selected text using OpenAI (use ONLY via keyboard shortcut)
-- `.env.template`: Template for OpenAI API key configuration. Copy and create `.env`
+- **Common Files**:
+  - `.env.template`: Template for OpenAI API key configuration
+  - `cleanup-dictation.py`: Cleans up selected text using GPT-4.1 Nano
+
+- **nerd-dictation / Vosk Method**:
+  - `dictation.conf.template`: Template configuration for nerd-dictation paths and settings
+  - `init-dictation.sh`: Initializes the Vosk speech recognition system
+  - `check-dictation-ready.sh`: Monitors initialization process and notifies when ready
+  - `start-dictation.sh`: Starts/resumes nerd-dictation
+  - `stop-dictation.sh`: Stops/suspends nerd-dictation
+
+- **Whisper Method**:
+  - `whisper_dictation.py`: Main Python driver for Whisper dictation
+  - `start-whisper-dictation.sh`: Starts recording for Whisper
+  - `stop-whisper-dictation.sh`: Stops recording, transcribes with Whisper and pastes
 
 ## Future Plans
 
-- The cleanup functionality currently uses GPT-3.5 Turbo, which provides excellent results without requiring more expensive models
-- Future versions may include integration with [OpenRouter](https://openrouter.ai/) to offer more model options and flexibility
-- Building more advanced prompts and model selection options for different cleanup styles and languages
-- Building evals and ensure quality control of the prompts and model outputs
+- Integration with [OpenRouter](https://openrouter.ai/) to offer more model options and flexibility
+- Advanced prompts and model selection options for different cleanup styles and languages
+- Evals and quality control of the prompts and model outputs

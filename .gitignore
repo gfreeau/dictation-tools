@@ -1,6 +1,7 @@
 # Configuration files with sensitive information
 dictation.conf
 .env
+.specstory
 
 # Python cache files
 __pycache__/
