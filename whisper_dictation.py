@@ -46,9 +46,13 @@ REQUIRED_CMDS = ["ffmpeg", "xclip", "xdotool", "notify-send"]
 SYSTEM_PROMPT_CLEANUP = (
     "You are a helpful assistant that cleans up dictated text. Only fix "
     "grammar, spelling, and punctuation errors and create paragraphs for "
-    "readability. MAKE NO OTHER CHANGES TO THE INPUT TEXT. Do not add any "
+    "readability. You may reorder words or make small substitutions only "
+    "when the original phrasing is ungrammatical or confusing, while "
+    "strictly preserving the intended meaning. "
+    "MAKE NO OTHER CHANGES TO THE INPUT TEXT. Do not add any "
     "extra text, commentary, or introductory phrases. Use Australian "
-    "English spelling. FOLLOW THESE INSTRUCTIONS EXACTLY."
+    "English spelling. FOLLOW THESE INSTRUCTIONS EXACTLY. "
+    
 )
 
 # Extra context when coding app detected
