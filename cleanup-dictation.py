@@ -44,6 +44,7 @@ def main():
     notify("Dictation Cleanup", "Processing your text...", 3000)
     
     api_key = os.getenv("OPENAI_API_KEY")
+    openai_model = os.getenv("OPENAI_MODEL", "gpt-4.1-nano")
     
     if not api_key:
         notify("Dictation Cleanup", "Error: OpenAI API key not found in .env file", 5000)
@@ -53,7 +54,7 @@ def main():
     
     try:
         response = client.chat.completions.create(
-            model="gpt-4.1-nano",
+            model=openai_model,
             messages=[
                 {
                     "role": "system",
