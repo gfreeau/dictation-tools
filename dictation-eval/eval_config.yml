@@ -1,0 +1,13 @@
+models:
+  - gpt-4o-mini
+  - gpt-4.1-nano
+
+prompts:
+  - base                # original prompt
+  - xml_markup          # prompt with XML structure
+  - few_shot            # prompt with few-shot examples
+  - injection_resistant # prompt specifically designed to resist injection attacks
+  - hybrid              # hybrid combining injection_resistant and few_shot
+  - hybrid_v2           # improved hybrid with specific examples for problem cases
+
+judge_model: o4-mini 

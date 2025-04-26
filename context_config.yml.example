@@ -1,0 +1,56 @@
+# Dictation Context Configuration Example
+#
+# This is an example configuration file. To use it:
+# 1. Copy to context_config.yml
+# 2. Customize the patterns and context prompts to match your needs
+#
+# Define patterns to match window names and corresponding extra context to add to the system prompt.
+# Each rule is applied in order, and the first matching pattern is used.
+#
+# Format:
+#   - window_pattern: "regex pattern to match window name"
+#     extra_context: "Additional text to add to the system prompt"
+#     description: "Optional human-readable description of this rule"
+
+context_rules:
+  - window_pattern: ".*Cursor$"
+    description: "Cursor IDE coding context"
+    extra_context: >
+      Right now we are in Cursor, an application used to write code. The user is 
+      likely talking about programming or technology. Correct technical 
+      terms and proper nouns such as 'Supabase', 'PostgreSQL', 'JavaScript', 'React', 
+      'TypeScript', etc., to their appropriate spellings and capitalization.
+
+  - window_pattern: ".*Visual Studio Code$"
+    description: "VS Code IDE coding context"
+    extra_context: >
+      The user is currently in Visual Studio Code, a code editor. Technical programming 
+      terms and syntax should be preserved with their correct capitalization and formatting.
+      Ensure that language-specific syntax and API names are spelled correctly.
+
+  # Email example - uncomment and customize as needed
+  # - window_pattern: ".*Gmail.*|.*Outlook.*|.*Thunderbird.*"
+  #   description: "Email composition context"
+  #   extra_context: >
+  #     The user is composing an email. Format appropriately for email communication,
+  #     with proper salutations and sign-offs if detected. Preserve any email syntax like
+  #     address formatting.
+
+  # Terminal example - uncomment and customize as needed
+  # - window_pattern: ".*Terminal.*|.*Konsole.*|.*iTerm.*"
+  #   description: "Terminal/command-line context"
+  #   extra_context: >
+  #     The user is working in a terminal. Command syntax, file paths, and shell 
+  #     commands should be preserved exactly as dictated. Pay special attention to
+  #     technical syntax like flags (e.g., -f, --force) and file paths.
+
+  # Add your own custom rules below
+
+  # Add more patterns as needed. Examples:
+  #
+  #
+  # - window_pattern: ".*Slack$"
+  #   description: "Slack messaging context"
+  #   extra_context: >
+  #     The user is writing in Slack. Format for instant messaging with appropriate
+  #     casual style while maintaining clarity. 

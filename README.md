@@ -11,7 +11,7 @@ I created these tools to make speech-to-text dictation more practical and seamle
 - **Easy text cleanup**: When dictation isn't perfect, a simple way to select and clean up text while preserving natural tone
 - **Better integration**: Works smoothly with applications like Cursor and other text editors
 - **Multiple engine options**: Use either local (Vosk) or cloud (Whisper) transcription based on your needs
-- **Context-aware cleanup**: Special handling for code and technical terms when in Cursor IDE
+- **Context-aware cleanup**: Special handling for code and technical terms based on active window
 
 ## Two Dictation Engines – Choose Your Preferred Method
 
@@ -22,7 +22,19 @@ This repository ships with **two completely separate dictation engines** that yo
 | **nerd-dictation / Vosk** | ✅ 100% local | Vosk acoustic model | `start-dictation.sh` / `stop-dictation.sh` | Yes (`init-dictation.sh`) |
 | **Whisper (OpenAI API)** | ☁️ Cloud API | OpenAI Whisper | `start-whisper-dictation.sh` / `stop-whisper-dictation.sh` | No |
 
-Both flows share the same cleaning pipeline and use GPT-4.1 Nano for text refinement. This allows for direct comparison of transcription quality, latency, and usability.
+Both flows share the same cleaning pipeline and use GPT-4o-mini for text refinement. This allows for direct comparison of transcription quality, latency, and usability.
+
+## Model Selection: GPT-4o-mini vs Alternatives
+
+We've evaluated multiple models for the text cleanup task, and GPT-4o-mini consistently performs best for the price:
+
+| Model | Evaluation Score | Cost Comparison | Notes |
+|-------|------------------|-----------------|-------|
+| GPT-4o-mini | 100% pass | Baseline | Best performance/price ratio |
+| GPT-4.1-nano | 63.6% pass | Lower cost | Significantly lower quality results |
+| GPT-4.1-mini | Similar to 4o-mini | Higher cost | No significant quality improvement |
+
+Our evaluation framework (see "Dictation Evaluations" below) tests each model's ability to resist prompt injection attacks while properly cleaning dictated text. GPT-4o-mini achieved perfect scores with our optimized prompts.
 
 ## Common Requirements (Both Methods)
 
@@ -33,7 +45,7 @@ Both flows share the same cleaning pipeline and use GPT-4.1 Nano for text refine
 
 - **Python packages**:
   ```
-  pip install openai python-dotenv
+  pip install openai python-dotenv pyyaml
   ```
 
 - **OpenAI API key**:
@@ -47,6 +59,12 @@ Both flows share the same cleaning pipeline and use GPT-4.1 Nano for text refine
 - **Make scripts executable**:
   ```
   chmod +x *.sh *.py
+  ```
+
+- **Context configuration** (optional but recommended):
+  ```
+  cp context_config.yml.example context_config.yml
+  nano context_config.yml  # Customize to your needs
   ```
 
 ## Method 1: Local Dictation with nerd-dictation (Vosk)
@@ -120,8 +138,10 @@ Both flows share the same cleaning pipeline and use GPT-4.1 Nano for text refine
 
 2. Optional configuration:
    ```bash
-   export WHISPER_TEMP_DIR=$HOME/tmp/whisper    # Change temp recording directory
-   export WHISPER_CLEANUP=false                 # Disable GPT cleanup (raw Whisper output)
+   export WHISPER_TEMP_DIR=$HOME/tmp/whisper     # Change temp recording directory
+   export WHISPER_CLEANUP=false                  # Disable GPT cleanup (raw Whisper output)
+   export OPENAI_MODEL=gpt-4.1-nano             # Change model (not recommended)
+   export WHISPER_CONTEXT_CONFIG=~/my-config.yml # Custom context config path
    ```
 
 3. Bind keyboard shortcuts:
@@ -135,12 +155,41 @@ Both flows share the same cleaning pipeline and use GPT-4.1 Nano for text refine
 
 That's it! No initialization step is needed as recordings are sent directly to the OpenAI API.
 
-## Special Features of the Whisper Flow
+## Context-Aware Dictation
 
-* **Cursor-aware spelling fixes** – Automatically detects if your active window belongs to the Cursor IDE and adds extra context to the cleanup prompt:
-  > "We are in Cursor … likely talking about programming or technology. Correct technical terms such as Supabase, PostgreSQL …"
-* **No model download needed** – Audio processing happens in the cloud, so startup is instant
-* **Simplified workflow** – No initialization required
+Both dictation methods now support context-aware text cleanup that adapts based on your active window:
+
+### How it Works
+
+1. When cleaning up text, the system detects your active window title
+2. It matches this title against patterns in `context_config.yml`
+3. If a match is found, additional context is added to the system prompt
+4. This helps the AI understand specific terminology and formatting needs
+
+### Configuration
+
+Create your configuration file:
+```
+cp context_config.yml.example context_config.yml
+```
+
+The file uses regex patterns to match window titles:
+```yaml
+context_rules:
+  - window_pattern: ".*Cursor$"
+    description: "Cursor IDE coding context"
+    extra_context: >
+      Right now we are in Cursor, an application used to write code...
+```
+
+### Use Cases
+
+- **IDE-specific**: Special handling for code in different editors
+- **Email clients**: Format for email communication
+- **Terminal**: Preserve command syntax and special characters
+- **Document editors**: Formal language or specific formatting
+
+The pattern-based approach makes it easy to customize for your specific applications and needs.
 
 ## Text Cleanup (Common to Both Methods)
 
@@ -148,7 +197,7 @@ Both dictation methods can benefit from additional text cleanup:
 
 1. Select text with your mouse
 2. Press your configured shortcut (e.g., Ctrl+Alt+C)
-3. The selected text will be replaced with cleaned-up text via GPT-4.1 Nano
+3. The selected text will be replaced with cleaned-up text via GPT-4o-mini
 
 ### Cleanup Features
 
@@ -158,12 +207,36 @@ Both dictation methods can benefit from additional text cleanup:
 - **Spelling correction**: Fixes spelling errors based on context
 - **Australian English**: Uses Australian spelling conventions
 - **Preserves your voice**: Maintains your natural tone and style while fixing technical issues
+- **Context-awareness**: Adapts to the specific application you're using
+
+## Dictation Evaluations
+
+The repository includes an evaluation framework to test different models and system prompts:
+
+### Evaluation Framework
+
+Located in `dictation-eval/`, the framework tests model resistance to prompt injection attacks while properly cleaning up dictated text.
+
+```bash
+cd dictation-eval
+python3 run_eval.py  # Run evaluations
+```
+
+### What's Tested
+
+- **Prompt injection resistance**: Tests if models follow instructions in dictated text
+- **System prompt leakage**: Checks if models reveal their internal instructions
+- **Question answering**: Verifies models don't answer questions in dictated text
+- **Technical term handling**: Ensures correct spelling of technical terms
+
+The evaluation results informed our choice of GPT-4o-mini with the "hybrid" prompt, which achieved a 100% pass rate.
 
 ## Files Overview
 
 - **Common Files**:
   - `.env.template`: Template for OpenAI API key configuration
-  - `cleanup-dictation.py`: Cleans up selected text using GPT-4.1 Nano
+  - `cleanup-dictation.py`: Cleans up selected text using GPT-4o-mini
+  - `context_config.yml.example`: Example configuration for context-aware cleanup
 
 - **nerd-dictation / Vosk Method**:
   - `dictation.conf.template`: Template configuration for nerd-dictation paths and settings
@@ -177,8 +250,14 @@ Both dictation methods can benefit from additional text cleanup:
   - `start-whisper-dictation.sh`: Starts recording for Whisper
   - `stop-whisper-dictation.sh`: Stops recording, transcribes with Whisper and pastes
 
+- **Evaluation Framework**:
+  - `dictation-eval/`: Directory containing evaluation tools
+  - `dictation-eval/run_eval.py`: Script to run evaluations
+  - `dictation-eval/eval_config.yml`: Configuration for model and prompt testing
+  - `dictation-eval/prompts/`: Different system prompts to evaluate
+
 ## Future Plans
 
 - Integration with [OpenRouter](https://openrouter.ai/) to offer more model options and flexibility
 - Advanced prompts and model selection options for different cleanup styles and languages
-- Evals and quality control of the prompts and model outputs
+- Continued improvements to context-aware dictation

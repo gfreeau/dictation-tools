@@ -2,11 +2,17 @@
 dictation.conf
 .env
 .specstory
+.whisper/
+context_config.yml
 
 # Python cache files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Dictation evaluation
+dictation-eval/.cache/
+dictation-eval/evals_results_*.csv
 
 # Log files
 logs/
