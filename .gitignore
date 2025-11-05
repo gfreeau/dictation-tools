@@ -13,6 +13,7 @@ __pycache__/
 # Dictation evaluation
 dictation-eval/.cache/
 dictation-eval/evals_results_*.csv
+dictation-eval/evals_results_*.xlsx
 
 # Log files
 logs/

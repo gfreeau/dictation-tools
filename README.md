@@ -10,19 +10,25 @@ I created these tools to make speech-to-text dictation more practical and seamle
 - **Desktop notifications**: Clear visual feedback when dictation is active or stopped
 - **Easy text cleanup**: When dictation isn't perfect, a simple way to select and clean up text while preserving natural tone
 - **Better integration**: Works smoothly with applications like Cursor and other text editors
-- **Multiple engine options**: Use either local (Vosk) or cloud (Whisper) transcription based on your needs
+- **Fast local transcription**: Uses faster-whisper for CPU-efficient local transcription, or fallback to OpenAI API
 - **Context-aware cleanup**: Special handling for code and technical terms based on active window
 
-## Two Dictation Engines – Choose Your Preferred Method
+## Whisper Dictation – Recommended Method
 
-This repository ships with **two completely separate dictation engines** that you can benchmark against each other:
+The primary dictation tool is `whisper_dictation.py`, which supports two modes:
 
-| Engine | Processing | Model | Hot-key Scripts | Init Required? |
-| ------ | ---------- | ----- | --------------- | -------------- |
-| **nerd-dictation / Vosk** | ✅ 100% local | Vosk acoustic model | `start-dictation.sh` / `stop-dictation.sh` | Yes (`init-dictation.sh`) |
-| **Whisper (OpenAI API)** | ☁️ Cloud API | OpenAI Whisper | `start-whisper-dictation.sh` / `stop-whisper-dictation.sh` | No |
+| Mode | Processing | Model | Speed | Hot-key Scripts |
+| ---- | ---------- | ----- | ----- | --------------- |
+| **Local (default)** | ✅ CPU-friendly local | faster-whisper (base) | ~0.9s transcription | `start-whisper-dictation.sh` / `stop-whisper-dictation.sh` |
+| **API (fallback)** | ☁️ Cloud API | OpenAI Whisper | ~4s API call | `start-whisper-dictation.sh` / `stop-whisper-dictation.sh` |
 
-Both flows share the same cleaning pipeline and use GPT-4o-mini for text refinement. This allows for direct comparison of transcription quality, latency, and usability.
+Both modes use GPT-4o-mini for intelligent text cleanup and technical term correction.
+
+**Why faster-whisper local mode?**
+- No API costs for transcription
+- Privacy (audio never leaves your machine)
+- Faster than API in real-world usage
+- Works offline
 
 ## Model Selection: GPT-4o-mini vs Alternatives
 
@@ -36,128 +42,79 @@ We've evaluated multiple models for the text cleanup task, and GPT-4o-mini consi
 
 Our evaluation framework (see "Dictation Evaluations" below) tests each model's ability to resist prompt injection attacks while properly cleaning dictated text. GPT-4o-mini achieved perfect scores with our optimized prompts.
 
-## Common Requirements (Both Methods)
+## Setup
+
+### System Requirements
 
 - **System packages**:
-  ```
-  sudo apt install xdotool xclip python3-pip notify-send
+  ```bash
+  sudo apt install xdotool xclip python3-pip notify-send ffmpeg
   ```
 
 - **Python packages**:
-  ```
-  pip install openai python-dotenv pyyaml
-  ```
-
-- **OpenAI API key**:
-  Create a `.env` file with your OpenAI API key (used for cleanup and Whisper):
-  ```
-  cp .env.template .env
-  nano .env
-  ```
-  Replace "your_api_key_here" with your actual OpenAI API key.
-
-- **Make scripts executable**:
-  ```
-  chmod +x *.sh *.py
+  ```bash
+  pip install faster-whisper openai python-dotenv pyyaml
   ```
 
-- **Context configuration** (optional but recommended):
-  ```
-  cp context_config.yml.example context_config.yml
-  nano context_config.yml  # Customize to your needs
-  ```
-
-## Method 1: Local Dictation with nerd-dictation (Vosk)
-
-### Additional Requirements
-
-- **[nerd-dictation](https://github.com/ideasman42/nerd-dictation)**: 
-  ```
-  git clone https://github.com/ideasman42/nerd-dictation.git
-  cd nerd-dictation
-  pip3 install vosk
-  ```
-  **IMPORTANT**: Complete ALL the installation steps in the [nerd-dictation README](https://github.com/ideasman42/nerd-dictation#install).
-
-- **Vosk speech model** - Download from [alphacephei.com/vosk/models](https://alphacephei.com/vosk/models)
-  - Minimum: [vosk-model-en-us-0.22-lgraph](https://alphacephei.com/vosk/models/vosk-model-en-us-0.22-lgraph.zip) (128M)
-  - Better accuracy: [vosk-model-en-us-0.42-gigaspeech](https://alphacephei.com/vosk/models/vosk-model-en-us-0.42-gigaspeech.zip) (2.3GB)
-
-### Setup
-
-1. Create a configuration file:
-   ```
-   cp dictation.conf.template dictation.conf
-   ```
-
-2. Edit the configuration file:
-   ```
-   nano dictation.conf
-   ```
-   Configure:
-   - `NERD_DICTATION_PATH`: Path to the nerd-dictation executable
-   - `VOSK_MODEL_DIR`: Path to your extracted Vosk model directory
-   - `START_DICTATION_KEY` and `STOP_DICTATION_KEY`: for notifications
-
-3. Bind keyboard shortcuts:
-   - `start-dictation.sh` → F9
-   - `stop-dictation.sh` → F10
-
-### Usage
-
-1. **Initialize dictation** (run once per session):
-   ```
-   ./init-dictation.sh
-   ```
-   This loads the speech model and suspends it, ready for fast dictation.
-
-2. **Check if dictation is ready** (optional but recommended for large models):
-   ```
-   ./check-dictation-ready.sh
-   ```
-   This monitors the initialization process and notifies you when the model is fully loaded.
-
-3. **Start dictation**: Press F9 (or your configured key)
-4. **Stop dictation**: Press F10 (or your configured key)
-
-## Method 2: Cloud Dictation with OpenAI Whisper
-
-### Additional Requirements
-
-- **ffmpeg**:
-  ```
-  sudo apt install ffmpeg
+  Or use requirements.txt:
+  ```bash
+  pip install -r requirements.txt
   ```
 
-### Setup
+  *Optional: Use a virtual environment if you prefer isolated dependencies, but the bash scripts assume system-wide installation by default.*
 
-1. Make the scripts executable:
-   ```
-   chmod +x start-whisper-dictation.sh stop-whisper-dictation.sh whisper_dictation.py
-   ```
+### Configuration
 
-2. Optional configuration:
+1. **Create environment file**:
    ```bash
-   export WHISPER_TEMP_DIR=$HOME/tmp/whisper     # Change temp recording directory
-   export WHISPER_CLEANUP=false                  # Disable GPT cleanup (raw Whisper output)
-   export OPENAI_MODEL=gpt-4.1-nano             # Change model (not recommended)
-   export WHISPER_CONTEXT_CONFIG=~/my-config.yml # Custom context config path
+   cp .env.template .env
+   nano .env
    ```
 
-3. Bind keyboard shortcuts:
-   - `start-whisper-dictation.sh` → F7
-   - `stop-whisper-dictation.sh` → F8
+   Configure:
+   - `OPENAI_API_KEY`: Your OpenAI API key (for cleanup, or API mode transcription)
+   - `WHISPER_MODE`: Set to `local` (default) or `api`
+   - `WHISPER_MODEL_SIZE`: Model size for local mode (default: `base`)
 
-### Usage
+2. **Make scripts executable**:
+   ```bash
+   chmod +x *.sh *.py
+   ```
 
-1. **Start Whisper dictation**: Press F7 (or your configured key)
-2. **Stop Whisper dictation**: Press F8 (or your configured key)
+3. **Context configuration** (optional but recommended):
+   ```bash
+   cp context_config.yml.example context_config.yml
+   nano context_config.yml  # Customize for your workflow
+   ```
 
-That's it! No initialization step is needed as recordings are sent directly to the OpenAI API.
+   This enables context-aware technical term correction (e.g., "super base" → "Supabase" in code editors).
+
+### Keyboard Shortcuts
+
+Bind these scripts to keyboard shortcuts (recommended: F9/F10):
+- `start-whisper-dictation.sh` → Start recording
+- `stop-whisper-dictation.sh` → Stop, transcribe, and paste
+
+## Usage
+
+1. **Start dictation**: Press your start hotkey (e.g., F9)
+2. **Speak**: Dictate your text
+3. **Stop dictation**: Press your stop hotkey (e.g., F10)
+4. **Result**: Transcribed and cleaned text is automatically pasted
+
+### Testing Without Cleanup
+
+To test raw Whisper output without GPT cleanup:
+```bash
+./whisper_dictation.py start --no-cleanup
+# Speak...
+./whisper_dictation.py stop --no-cleanup
+```
+
 
 ## Context-Aware Dictation
 
-Both dictation methods now support context-aware text cleanup that adapts based on your active window:
+The dictation system supports context-aware text cleanup that adapts based on your active window:
 
 ### How it Works
 
@@ -191,23 +148,17 @@ context_rules:
 
 The pattern-based approach makes it easy to customize for your specific applications and needs.
 
-## Text Cleanup (Common to Both Methods)
-
-Both dictation methods can benefit from additional text cleanup:
-
-1. Select text with your mouse
-2. Press your configured shortcut (e.g., Ctrl+Alt+C)
-3. The selected text will be replaced with cleaned-up text via GPT-4o-mini
-
 ### Cleanup Features
+
+The GPT cleanup stage provides:
 
 - **Grammar correction**: Fixes grammar issues in dictated text
 - **Punctuation correction**: Adds or fixes punctuation
 - **Paragraph formatting**: Creates paragraphs for better readability
-- **Spelling correction**: Fixes spelling errors based on context
+- **Technical term correction**: Fixes "super base" → "Supabase", "postgres SQL" → "PostgreSQL"
 - **Australian English**: Uses Australian spelling conventions
 - **Preserves your voice**: Maintains your natural tone and style while fixing technical issues
-- **Context-awareness**: Adapts to the specific application you're using
+- **Context-awareness**: Adapts based on active window (e.g., code editors get better technical term handling)
 
 ## Dictation Evaluations
 
@@ -233,26 +184,18 @@ The evaluation results informed our choice of GPT-4o-mini with the "hybrid" prom
 
 ## Files Overview
 
-- **Common Files**:
-  - `.env.template`: Template for OpenAI API key configuration
-  - `cleanup-dictation.py`: Cleans up selected text using GPT-4o-mini
+- **Core Files**:
+  - `whisper_dictation.py`: Main dictation engine (start/stop/transcribe/cleanup)
+  - `start-whisper-dictation.sh`: Starts recording (bind to F9)
+  - `stop-whisper-dictation.sh`: Stops recording, transcribes and pastes (bind to F10)
+
+- **Configuration**:
+  - `.env.template`: Template for environment variables (API keys, model settings)
   - `context_config.yml.example`: Example configuration for context-aware cleanup
-
-- **nerd-dictation / Vosk Method**:
-  - `dictation.conf.template`: Template configuration for nerd-dictation paths and settings
-  - `init-dictation.sh`: Initializes the Vosk speech recognition system
-  - `check-dictation-ready.sh`: Monitors initialization process and notifies when ready
-  - `start-dictation.sh`: Starts/resumes nerd-dictation
-  - `stop-dictation.sh`: Stops/suspends nerd-dictation
-
-- **Whisper Method**:
-  - `whisper_dictation.py`: Main Python driver for Whisper dictation
-  - `start-whisper-dictation.sh`: Starts recording for Whisper
-  - `stop-whisper-dictation.sh`: Stops recording, transcribes with Whisper and pastes
 
 - **Evaluation Framework**:
   - `dictation-eval/`: Directory containing evaluation tools
-  - `dictation-eval/run_eval.py`: Script to run evaluations
+  - `dictation-eval/run_eval.py`: Script to run model evaluations
   - `dictation-eval/eval_config.yml`: Configuration for model and prompt testing
   - `dictation-eval/prompts/`: Different system prompts to evaluate
 

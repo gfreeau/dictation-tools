@@ -1,0 +1,17 @@
+# Core dependencies for dictation-tools
+
+# Whisper transcription (local mode)
+faster-whisper>=1.0.0
+
+# OpenAI API (for cleanup and API mode)
+openai>=1.0.0
+
+# Configuration
+python-dotenv>=1.0.0
+pyyaml>=6.0
+
+# Note: System packages also required (install via apt):
+# - ffmpeg (for audio recording)
+# - xdotool (for paste automation)
+# - xclip (for clipboard)
+# - notify-send (for desktop notifications)
