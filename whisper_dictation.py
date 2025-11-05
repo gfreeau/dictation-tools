@@ -17,12 +17,16 @@ Design goals:
 Environment / config:
     WHISPER_MODE       – transcription mode: "local" or "api" (default: local)
     WHISPER_TEMP_DIR   – directory for temporary recordings (default: /tmp/whisper_records)
-    WHISPER_CLEANUP    – "true" to enable GPT cleanup (default: true)
-    OPENAI_API_KEY     – your OpenAI key (for cleanup stage, or API mode)
-    OPENAI_MODEL       – the OpenAI model to use for GPT cleanup (default: gpt-4o-mini)
+    WHISPER_CLEANUP    – "true" to enable LLM cleanup (default: true)
+    CLEANUP_MODEL      – model for text cleanup (default: google/gemini-2.5-flash-lite)
+                         Options: google/gemini-2.5-flash-lite, google/gemini-2.0-flash-001, gpt-4o-mini
+    OPENAI_API_KEY     – OpenAI API key (for OpenAI models or API mode transcription)
+    OPENROUTER_API_KEY – OpenRouter API key (for Gemini and other OpenRouter models)
     WHISPER_CONTEXT_CONFIG – path to context configuration file (default: ./context_config.yml)
     WHISPER_MODEL_SIZE – local Whisper model size (default: base)
+                         Options: base, base.en, small, small.en, medium, medium.en
     WHISPER_COMPUTE_TYPE – compute type for quantization (default: int8)
+                          Options: int8, float16, float32
 
 System dependencies: ffmpeg, xclip, xdotool, notify-send
 Python dependencies: faster-whisper (for local mode), openai, python-dotenv, pyyaml
@@ -39,6 +43,9 @@ from typing import Optional, Dict, List, Any
 from dotenv import load_dotenv
 import re
 import json
+
+# Load .env FIRST, before defining any constants that use os.getenv()
+load_dotenv()
 
 try:
     from openai import OpenAI
@@ -59,8 +66,8 @@ PID_FILE = Path.home() / ".whisper_recorder_pid"
 TMP_DIR = Path(os.getenv("WHISPER_TEMP_DIR", "/tmp/whisper_records"))
 WHISPER_MODE = os.getenv("WHISPER_MODE", "local").lower()  # "local" or "api"
 CLEANUP_ENABLED = os.getenv("WHISPER_CLEANUP", "true").lower() in {"1", "true", "yes"}
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "base")
+CLEANUP_MODEL = os.getenv("CLEANUP_MODEL", "google/gemini-2.5-flash-lite")  # Model for text cleanup
+WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "small")  # small has better accuracy than base
 WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
 
 # Config file path
@@ -75,8 +82,28 @@ LOG_DIR = Path(os.getenv("WHISPER_LOG_DIR", str(_default_log_dir)))
 
 REQUIRED_CMDS = ["ffmpeg", "xclip", "xdotool", "notify-send"]
 
-# Global Whisper model instance (loaded once, reused for all transcriptions)
-_whisper_model: Optional[WhisperModel] = None
+
+def get_cleanup_client():
+    """Get appropriate API client based on cleanup model."""
+    model = CLEANUP_MODEL
+
+    # Determine if we need OpenRouter or OpenAI
+    if "/" in model:
+        # OpenRouter model (has provider prefix like google/, anthropic/, etc.)
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            return None, "OPENROUTER_API_KEY"
+        return OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key
+        ), None
+    else:
+        # OpenAI model (no prefix)
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return None, "OPENAI_API_KEY"
+        return OpenAI(api_key=api_key), None
+
 
 SYSTEM_PROMPT_CLEANUP = (
     "ROLE: You are a dictation cleanup tool that processes raw spoken text into properly formatted text.\n\n"
@@ -276,23 +303,19 @@ def kill_recorder() -> Optional[Path]:
 
 
 def load_whisper_model() -> WhisperModel:
-    """Load the Whisper model (cached after first load)."""
-    global _whisper_model
-
-    if _whisper_model is None:
-        print(f"Loading Whisper model ({WHISPER_MODEL_SIZE}, {WHISPER_COMPUTE_TYPE})...")
-        start = time.time()
-        _whisper_model = WhisperModel(
-            WHISPER_MODEL_SIZE,
-            device="cpu",
-            compute_type=WHISPER_COMPUTE_TYPE,
-            num_workers=4,
-            cpu_threads=4
-        )
-        load_time = time.time() - start
-        print(f"Model loaded in {load_time:.2f}s")
-
-    return _whisper_model
+    """Load the Whisper model."""
+    print(f"Loading Whisper model ({WHISPER_MODEL_SIZE}, {WHISPER_COMPUTE_TYPE})...")
+    start = time.time()
+    model = WhisperModel(
+        WHISPER_MODEL_SIZE,
+        device="cpu",
+        compute_type=WHISPER_COMPUTE_TYPE,
+        num_workers=4,
+        cpu_threads=4
+    )
+    load_time = time.time() - start
+    print(f"Model loaded in {load_time:.2f}s")
+    return model
 
 
 def transcribe_local(wav_path: Path) -> str:
@@ -359,7 +382,7 @@ def transcribe_audio(wav_path: Path) -> str:
 
 
 def cleanup_text(raw_text: str, cleanup_enabled: bool) -> tuple:
-    """Clean up text using GPT if enabled."""
+    """Clean up text using LLM if enabled."""
     # Get the active window name (always, for logging)
     window_name = get_active_window_name()
 
@@ -367,12 +390,11 @@ def cleanup_text(raw_text: str, cleanup_enabled: bool) -> tuple:
         print("Cleanup disabled, using raw transcription")
         return raw_text, window_name, False
 
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        print("Warning: OPENAI_API_KEY not set, skipping cleanup")
+    # Get appropriate client for the configured model
+    client, missing_key = get_cleanup_client()
+    if not client:
+        print(f"Warning: {missing_key} not set, skipping cleanup")
         return raw_text, window_name, False
-
-    client = OpenAI(api_key=api_key)
 
     # Start with base system prompt
     system_prompt = SYSTEM_PROMPT_CLEANUP
@@ -384,7 +406,7 @@ def cleanup_text(raw_text: str, cleanup_enabled: bool) -> tuple:
         system_prompt += "\n\n" + extra_context
 
     resp = client.chat.completions.create(
-        model=OPENAI_MODEL,
+        model=CLEANUP_MODEL,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": raw_text},
@@ -412,7 +434,7 @@ def log_dictation(raw: str, cleaned: str, window_name: Optional[str], extra_cont
         
         entry = {
             "timestamp": datetime.datetime.utcnow().isoformat(timespec="seconds"),
-            "model": OPENAI_MODEL,
+            "model": CLEANUP_MODEL,
             "raw_text": raw,
             "cleaned_text": cleaned,
             "context": {
@@ -459,8 +481,6 @@ def record_stop(cleanup_enabled: bool) -> None:
 
 
 def main() -> None:
-    load_dotenv()
-
     # Parse command-line arguments
     args = sys.argv[1:]
     if not args or args[0] not in {"start", "stop"}:

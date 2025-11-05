@@ -20,8 +20,21 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Initialize clients - support both OpenAI and OpenRouter
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openrouter_client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY")
+)
+
+def get_client_for_model(model):
+    """Return appropriate client based on model prefix"""
+    if model.startswith("openai/") or model.startswith("google/") or model.startswith("anthropic/") or "/" in model:
+        # OpenRouter model (has provider prefix)
+        return openrouter_client
+    else:
+        # OpenAI model (no prefix)
+        return openai_client
 
 REASONING_MODELS = ["o4-mini", "o3-mini"] # To determine if we should not add temperature and top_p
 
@@ -52,17 +65,19 @@ def cached_call(model, messages, temperature=0, top_p=None, **kwargs):
     
     # Make the actual API call
     api_kwargs = {"model": model, "messages": messages}
-    
+
     # Add temperature and top_p based on model category
     if model not in REASONING_MODELS:
         api_kwargs["temperature"] = temperature
         if top_p is not None:
             api_kwargs["top_p"] = top_p
-    
+
     # Add any additional kwargs
     for k, v in kwargs.items():
         api_kwargs[k] = v
-        
+
+    # Get appropriate client for this model
+    client = get_client_for_model(model)
     resp = client.chat.completions.create(**api_kwargs)
     
     # Save response to cache

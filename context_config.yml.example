@@ -13,20 +13,20 @@
 #     description: "Optional human-readable description of this rule"
 
 context_rules:
-  - window_pattern: ".*Cursor$"
+  # Specific IDE rules (match first, higher priority)
+  - window_pattern: ".*Cursor.*"
     description: "Cursor IDE coding context"
     extra_context: >
-      Right now we are in Cursor, an application used to write code. The user is 
-      likely talking about programming or technology. Correct technical 
-      terms and proper nouns such as 'Supabase', 'PostgreSQL', 'JavaScript', 'React', 
-      'TypeScript', etc., to their appropriate spellings and capitalization.
+      Right now we are in Cursor, an application used to write code.
+      The user is likely discussing programming, web development, databases, and technology.
+      Correct technical terms and proper nouns to their appropriate spellings and capitalisation.
 
-  - window_pattern: ".*Visual Studio Code$"
-    description: "VS Code IDE coding context"
+  - window_pattern: ".*(Visual Studio Code|VSCodium).*"
+    description: "VS Code/VSCodium IDE coding context"
     extra_context: >
-      The user is currently in Visual Studio Code, a code editor. Technical programming 
-      terms and syntax should be preserved with their correct capitalization and formatting.
-      Ensure that language-specific syntax and API names are spelled correctly.
+      Right now we are in a code editor.
+      The user is likely discussing programming, web development, databases, and technology.
+      Correct technical terms and proper nouns to their appropriate spellings and capitalisation.
 
   # Email example - uncomment and customize as needed
   # - window_pattern: ".*Gmail.*|.*Outlook.*|.*Thunderbird.*"
@@ -44,10 +44,16 @@ context_rules:
   #     commands should be preserved exactly as dictated. Pay special attention to
   #     technical syntax like flags (e.g., -f, --force) and file paths.
 
-  # Add your own custom rules below
+  # Generic catch-all for all other windows (matches last)
+  # This provides technical context everywhere, letting the AI infer correct technical terms
+  # without explicit examples. Comment out if you only want context in specific apps.
+  - window_pattern: ".*"
+    description: "Generic technical context"
+    extra_context: >
+      The user commonly speaks about programming, web development, databases, and technology.
+      Correct technical terms and proper nouns to their appropriate spellings and capitalisation.
 
-  # Add more patterns as needed. Examples:
-  #
+  # Add more specific patterns above the catch-all. Examples:
   #
   # - window_pattern: ".*Slack$"
   #   description: "Slack messaging context"

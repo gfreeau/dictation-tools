@@ -19,10 +19,10 @@ The primary dictation tool is `whisper_dictation.py`, which supports two modes:
 
 | Mode | Processing | Model | Speed | Hot-key Scripts |
 | ---- | ---------- | ----- | ----- | --------------- |
-| **Local (default)** | ✅ CPU-friendly local | faster-whisper (base) | ~0.9s transcription | `start-whisper-dictation.sh` / `stop-whisper-dictation.sh` |
+| **Local (default)** | ✅ CPU-friendly local | faster-whisper (small) | ~2s transcription | `start-whisper-dictation.sh` / `stop-whisper-dictation.sh` |
 | **API (fallback)** | ☁️ Cloud API | OpenAI Whisper | ~4s API call | `start-whisper-dictation.sh` / `stop-whisper-dictation.sh` |
 
-Both modes use GPT-4o-mini for intelligent text cleanup and technical term correction.
+Both modes use Gemini 2.5 Flash Lite (via OpenRouter) for intelligent text cleanup and technical term correction.
 
 **Why faster-whisper local mode?**
 - No API costs for transcription
@@ -30,17 +30,19 @@ Both modes use GPT-4o-mini for intelligent text cleanup and technical term corre
 - Faster than API in real-world usage
 - Works offline
 
-## Model Selection: GPT-4o-mini vs Alternatives
+## Model Selection for Text Cleanup
 
-We've evaluated multiple models for the text cleanup task, and GPT-4o-mini consistently performs best for the price:
+We've evaluated multiple models for the text cleanup task across OpenAI and Google Gemini (via OpenRouter):
 
-| Model | Evaluation Score | Cost Comparison | Notes |
-|-------|------------------|-----------------|-------|
-| GPT-4o-mini | 100% pass | Baseline | Best performance/price ratio |
-| GPT-4.1-nano | 63.6% pass | Lower cost | Significantly lower quality results |
-| GPT-4.1-mini | Similar to 4o-mini | Higher cost | No significant quality improvement |
+| Model | Evaluation Score | Speed | Cost vs GPT-4o-mini | Notes |
+|-------|------------------|-------|---------------------|-------|
+| **Gemini 2.5 Flash Lite** | 100% pass | 1.78s | ~80% cheaper | Default - fastest, excellent quality |
+| **Gemini 2.0 Flash** | 100% pass | 2.93s | ~60% cheaper | Better homophone fixes |
+| GPT-4o-mini | 100% pass | 7.04s | Baseline | Good fallback option |
+| GPT-4.1-nano | 63.6% pass | - | Lower cost | Significantly lower quality |
+| GPT-4.1-mini | 100% pass | - | Higher cost | No improvement over 4o-mini |
 
-Our evaluation framework (see "Dictation Evaluations" below) tests each model's ability to resist prompt injection attacks while properly cleaning dictated text. GPT-4o-mini achieved perfect scores with our optimized prompts.
+Our evaluation framework (see "Dictation Evaluations" below) tests each model's ability to resist prompt injection attacks while properly cleaning dictated text. All recommended models achieved 100% pass rates with our optimized prompts.
 
 ## Setup
 
@@ -72,9 +74,11 @@ Our evaluation framework (see "Dictation Evaluations" below) tests each model's 
    ```
 
    Configure:
-   - `OPENAI_API_KEY`: Your OpenAI API key (for cleanup, or API mode transcription)
+   - `OPENROUTER_API_KEY`: Your OpenRouter API key (for Gemini cleanup models) - get from https://openrouter.ai/keys
+   - `OPENAI_API_KEY`: Your OpenAI API key (optional - for OpenAI models or API mode transcription)
+   - `CLEANUP_MODEL`: Model for text cleanup (default: `google/gemini-2.5-flash-lite`)
    - `WHISPER_MODE`: Set to `local` (default) or `api`
-   - `WHISPER_MODEL_SIZE`: Model size for local mode (default: `base`)
+   - `WHISPER_MODEL_SIZE`: Model size for local mode (default: `small`)
 
 2. **Make scripts executable**:
    ```bash
@@ -180,7 +184,7 @@ python3 run_eval.py  # Run evaluations
 - **Question answering**: Verifies models don't answer questions in dictated text
 - **Technical term handling**: Ensures correct spelling of technical terms
 
-The evaluation results informed our choice of GPT-4o-mini with the "hybrid" prompt, which achieved a 100% pass rate.
+The evaluation results informed our model choices - GPT-4o-mini, Gemini 2.5 Flash Lite, and Gemini 2.0 Flash all achieved 100% pass rates with the "hybrid" prompt.
 
 ## Files Overview
 
@@ -192,6 +196,7 @@ The evaluation results informed our choice of GPT-4o-mini with the "hybrid" prom
 - **Configuration**:
   - `.env.template`: Template for environment variables (API keys, model settings)
   - `context_config.yml.example`: Example configuration for context-aware cleanup
+  - `requirements.txt`: Python package dependencies
 
 - **Evaluation Framework**:
   - `dictation-eval/`: Directory containing evaluation tools
@@ -201,6 +206,5 @@ The evaluation results informed our choice of GPT-4o-mini with the "hybrid" prom
 
 ## Future Plans
 
-- Integration with [OpenRouter](https://openrouter.ai/) to offer more model options and flexibility
 - Advanced prompts and model selection options for different cleanup styles and languages
 - Continued improvements to context-aware dictation
