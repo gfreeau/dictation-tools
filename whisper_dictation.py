@@ -233,9 +233,9 @@ def get_context_for_window(window_name: Optional[str]) -> Optional[str]:
     """
     if not window_name:
         return None
-        
+
     context_rules = load_context_config()
-    
+
     for rule in context_rules:
         pattern = rule.get("window_pattern")
         if pattern and re.search(pattern, window_name):
@@ -243,8 +243,29 @@ def get_context_for_window(window_name: Optional[str]) -> Optional[str]:
             if "description" in rule:
                 print(f"Applying rule: {rule['description']}")
             return rule.get("extra_context")
-    
+
     return None
+
+
+def get_paste_key_for_window(window_name: Optional[str]) -> str:
+    """
+    Determine the paste key combination to use based on the window name.
+    Returns the paste key (default: "ctrl+v").
+    """
+    if not window_name:
+        return "ctrl+v"
+
+    context_rules = load_context_config()
+
+    for rule in context_rules:
+        pattern = rule.get("window_pattern")
+        if pattern and re.search(pattern, window_name):
+            paste_key = rule.get("paste_key")
+            if paste_key:
+                print(f"Using paste key '{paste_key}' for window '{window_name}'")
+                return paste_key
+
+    return "ctrl+v"
 
 
 def record_start() -> None:
@@ -421,7 +442,9 @@ def cleanup_text(raw_text: str, cleanup_enabled: bool) -> tuple:
 
 def copy_and_paste(text: str) -> None:
     subprocess.run(["xclip", "-selection", "clipboard"], input=text.encode(), check=False)
-    subprocess.run(["xdotool", "key", "ctrl+v"], check=False)
+    window_name = get_active_window_name()
+    paste_key = get_paste_key_for_window(window_name)
+    subprocess.run(["xdotool", "key", paste_key], check=False)
 
 
 def log_dictation(raw: str, cleaned: str, window_name: Optional[str], extra_context_applied: bool) -> None:
@@ -434,7 +457,9 @@ def log_dictation(raw: str, cleaned: str, window_name: Optional[str], extra_cont
         
         entry = {
             "timestamp": datetime.datetime.utcnow().isoformat(timespec="seconds"),
-            "model": CLEANUP_MODEL,
+            "whisper_mode": WHISPER_MODE,
+            "whisper_model_size": WHISPER_MODEL_SIZE if WHISPER_MODE == "local" else None,
+            "cleanup_model": CLEANUP_MODEL,
             "raw_text": raw,
             "cleaned_text": cleaned,
             "context": {
@@ -483,8 +508,11 @@ def record_stop(cleanup_enabled: bool) -> None:
 def main() -> None:
     # Parse command-line arguments
     args = sys.argv[1:]
-    if not args or args[0] not in {"start", "stop"}:
-        print("Usage: whisper_dictation.py start|stop [--no-cleanup]")
+    if not args or args[0] not in {"start", "stop", "toggle"}:
+        print("Usage: whisper_dictation.py start|stop|toggle [--no-cleanup]")
+        print("  start: Start recording")
+        print("  stop: Stop recording and transcribe")
+        print("  toggle: Start if not recording, stop if recording")
         print("  --no-cleanup: Skip GPT cleanup stage (test raw Whisper output)")
         sys.exit(1)
 
@@ -494,7 +522,13 @@ def main() -> None:
     if not check_dependencies(cleanup_enabled):
         sys.exit(1)
 
-    if cmd == "start":
+    if cmd == "toggle":
+        # Check if recording is active and toggle accordingly
+        if PID_FILE.exists():
+            record_stop(cleanup_enabled)
+        else:
+            record_start()
+    elif cmd == "start":
         record_start()
     else:
         record_stop(cleanup_enabled)

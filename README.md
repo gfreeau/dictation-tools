@@ -19,8 +19,8 @@ The primary dictation tool is `whisper_dictation.py`, which supports two modes:
 
 | Mode | Processing | Model | Speed | Hot-key Scripts |
 | ---- | ---------- | ----- | ----- | --------------- |
-| **Local (default)** | ✅ CPU-friendly local | faster-whisper (small) | ~2s transcription | `start-whisper-dictation.sh` / `stop-whisper-dictation.sh` |
-| **API (fallback)** | ☁️ Cloud API | OpenAI Whisper | ~4s API call | `start-whisper-dictation.sh` / `stop-whisper-dictation.sh` |
+| **Local (default)** | ✅ CPU-friendly local | faster-whisper (small) | ~2s transcription | `toggle-whisper-dictation.sh` (recommended) or `start`/`stop` scripts |
+| **API (fallback)** | ☁️ Cloud API | OpenAI Whisper | ~4s API call | `toggle-whisper-dictation.sh` (recommended) or `start`/`stop` scripts |
 
 Both modes use Gemini 2.5 Flash Lite (via OpenRouter) for intelligent text cleanup and technical term correction.
 
@@ -50,20 +50,22 @@ Our evaluation framework (see "Dictation Evaluations" below) tests each model's 
 
 - **System packages**:
   ```bash
-  sudo apt install xdotool xclip python3-pip notify-send ffmpeg
+  sudo apt install xdotool xclip python3-venv ffmpeg libnotify-bin
   ```
 
-- **Python packages**:
+- **Python virtual environment setup**:
   ```bash
-  pip install faster-whisper openai python-dotenv pyyaml
-  ```
+  # Create virtual environment
+  python3 -m venv venv
 
-  Or use requirements.txt:
-  ```bash
+  # Activate it
+  source venv/bin/activate
+
+  # Install Python dependencies
   pip install -r requirements.txt
   ```
 
-  *Optional: Use a virtual environment if you prefer isolated dependencies, but the bash scripts assume system-wide installation by default.*
+  The launcher scripts (`start-whisper-dictation.sh`, `stop-whisper-dictation.sh`, `toggle-whisper-dictation.sh`) automatically use the venv, so you don't need to activate it manually when using keyboard shortcuts.
 
 ### Configuration
 
@@ -85,7 +87,15 @@ Our evaluation framework (see "Dictation Evaluations" below) tests each model's 
    chmod +x *.sh *.py
    ```
 
-3. **Context configuration** (optional but recommended):
+3. **Pre-download Whisper models** (recommended):
+   ```bash
+   source venv/bin/activate
+   python3 -c "from faster_whisper import WhisperModel; model = WhisperModel('small', device='cpu', compute_type='int8')"
+   ```
+
+   This downloads the model ahead of time so your first dictation isn't delayed. Replace `'small'` with your chosen model size (`base`, `medium`, `large-v3`, etc.) to match your `WHISPER_MODEL_SIZE` setting in `.env`.
+
+4. **Context configuration** (optional but recommended):
    ```bash
    cp context_config.yml.example context_config.yml
    nano context_config.yml  # Customize for your workflow
@@ -95,24 +105,44 @@ Our evaluation framework (see "Dictation Evaluations" below) tests each model's 
 
 ### Keyboard Shortcuts
 
-Bind these scripts to keyboard shortcuts (recommended: F9/F10):
-- `start-whisper-dictation.sh` → Start recording
-- `stop-whisper-dictation.sh` → Stop, transcribe, and paste
+You can choose between two workflows:
+
+**Option 1: Single-key toggle (recommended)**
+- `toggle-whisper-dictation.sh` → Press once to start, press again to stop, transcribe, and paste
+- Bind to a single key (e.g., F9)
+
+**Option 2: Two-key workflow**
+- `start-whisper-dictation.sh` → Start recording (e.g., F9)
+- `stop-whisper-dictation.sh` → Stop, transcribe, and paste (e.g., F10)
 
 ## Usage
 
-1. **Start dictation**: Press your start hotkey (e.g., F9)
+**Single-key toggle workflow:**
+1. **Start dictation**: Press your toggle key (e.g., F9)
 2. **Speak**: Dictate your text
-3. **Stop dictation**: Press your stop hotkey (e.g., F10)
+3. **Stop dictation**: Press the same key again
+4. **Result**: Transcribed and cleaned text is automatically pasted
+
+**Two-key workflow:**
+1. **Start dictation**: Press your start key (e.g., F9)
+2. **Speak**: Dictate your text
+3. **Stop dictation**: Press your stop key (e.g., F10)
 4. **Result**: Transcribed and cleaned text is automatically pasted
 
 ### Testing Without Cleanup
 
-To test raw Whisper output without GPT cleanup:
+To test raw Whisper output without LLM cleanup:
 ```bash
 ./whisper_dictation.py start --no-cleanup
 # Speak...
 ./whisper_dictation.py stop --no-cleanup
+```
+
+Or with toggle mode:
+```bash
+./whisper_dictation.py toggle --no-cleanup  # start
+# Speak...
+./whisper_dictation.py toggle --no-cleanup  # stop
 ```
 
 
@@ -134,20 +164,34 @@ Create your configuration file:
 cp context_config.yml.example context_config.yml
 ```
 
-The file uses regex patterns to match window titles:
+The file uses regex patterns to match window titles and supports two types of customization:
+
 ```yaml
 context_rules:
-  - window_pattern: ".*Cursor$"
-    description: "Cursor IDE coding context"
+  - window_pattern: ".*Visual Studio Code.*"
+    description: "VS Code IDE coding context"
+    paste_key: "ctrl+shift+v"  # Custom paste shortcut
     extra_context: >
       Right now we are in Cursor, an application used to write code...
+
+  # Paste behavior only (no LLM context change)
+  - window_pattern: "^Terminal$"
+    description: "Terminal application"
+    paste_key: "ctrl+shift+v"
 ```
+
+**Configuration options:**
+- `extra_context`: Additional text added to the LLM cleanup system prompt
+- `paste_key`: Custom paste keyboard shortcut (default: `ctrl+v`)
+  - Terminals and some IDEs use `ctrl+shift+v` because `Ctrl+C/V` are reserved for terminal control sequences
+
+You can specify `extra_context`, `paste_key`, both, or neither in each rule.
 
 ### Use Cases
 
-- **IDE-specific**: Special handling for code in different editors
+- **IDE-specific**: Special handling for code in different editors + custom paste shortcuts
+- **Terminals**: Use `ctrl+shift+v` for paste without changing LLM context
 - **Email clients**: Format for email communication
-- **Terminal**: Preserve command syntax and special characters
 - **Document editors**: Formal language or specific formatting
 
 The pattern-based approach makes it easy to customize for your specific applications and needs.
@@ -189,9 +233,10 @@ The evaluation results informed our model choices - GPT-4o-mini, Gemini 2.5 Flas
 ## Files Overview
 
 - **Core Files**:
-  - `whisper_dictation.py`: Main dictation engine (start/stop/transcribe/cleanup)
-  - `start-whisper-dictation.sh`: Starts recording (bind to F9)
-  - `stop-whisper-dictation.sh`: Stops recording, transcribes and pastes (bind to F10)
+  - `whisper_dictation.py`: Main dictation engine (start/stop/toggle/transcribe/cleanup)
+  - `toggle-whisper-dictation.sh`: Toggle recording on/off with single key (recommended)
+  - `start-whisper-dictation.sh`: Starts recording (two-key workflow)
+  - `stop-whisper-dictation.sh`: Stops recording, transcribes and pastes (two-key workflow)
 
 - **Configuration**:
   - `.env.template`: Template for environment variables (API keys, model settings)

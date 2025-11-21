@@ -4,13 +4,21 @@
 # 1. Copy to context_config.yml
 # 2. Customize the patterns and context prompts to match your needs
 #
-# Define patterns to match window names and corresponding extra context to add to the system prompt.
+# Define patterns to match window names and corresponding behavior:
+# - extra_context: Additional text to add to the LLM cleanup system prompt
+# - paste_key: Custom paste keyboard shortcut (default: "ctrl+v")
+#                Terminals and some IDEs use "ctrl+shift+v" instead of "ctrl+v"
+#                because Ctrl+C/V are reserved for terminal control sequences
+#
 # Each rule is applied in order, and the first matching pattern is used.
 #
 # Format:
 #   - window_pattern: "regex pattern to match window name"
-#     extra_context: "Additional text to add to the system prompt"
 #     description: "Optional human-readable description of this rule"
+#     extra_context: "Additional text to add to the system prompt (optional)"
+#     paste_key: "keyboard shortcut for paste (optional, default: ctrl+v)"
+#
+# Note: You can specify extra_context, paste_key, both, or neither in each rule.
 
 context_rules:
   # Specific IDE rules (match first, higher priority)
@@ -23,6 +31,7 @@ context_rules:
 
   - window_pattern: ".*(Visual Studio Code|VSCodium).*"
     description: "VS Code/VSCodium IDE coding context"
+    paste_key: "ctrl+shift+v"
     extra_context: >
       Right now we are in a code editor.
       The user is likely discussing programming, web development, databases, and technology.
@@ -36,11 +45,17 @@ context_rules:
   #     with proper salutations and sign-offs if detected. Preserve any email syntax like
   #     address formatting.
 
-  # Terminal example - uncomment and customize as needed
-  # - window_pattern: ".*Terminal.*|.*Konsole.*|.*iTerm.*"
+  # Terminal example - paste behavior only (no extra context needed)
+  - window_pattern: "^Terminal$"
+    description: "Terminal application"
+    paste_key: "ctrl+shift+v"
+
+  # Other terminal emulators - uncomment and customize as needed
+  # - window_pattern: ".*Konsole.*|.*iTerm.*|.*Gnome Terminal.*"
   #   description: "Terminal/command-line context"
+  #   paste_key: "ctrl+shift+v"
   #   extra_context: >
-  #     The user is working in a terminal. Command syntax, file paths, and shell 
+  #     The user is working in a terminal. Command syntax, file paths, and shell
   #     commands should be preserved exactly as dictated. Pay special attention to
   #     technical syntax like flags (e.g., -f, --force) and file paths.
 
