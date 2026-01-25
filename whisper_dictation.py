@@ -200,15 +200,30 @@ def notify(title: str, message: str, timeout_ms: int = 3000) -> None:
         pass  # ignore failures silently
 
 
-def get_active_window_name() -> Optional[str]:
-    """Get the name of the currently active window, or None if it cannot be determined."""
+def get_active_window_info() -> Dict[str, Optional[str]]:
+    """Get info about the currently active window (name and WM_CLASS)."""
+    result = {"name": None, "wm_class": None}
     try:
         win_id = subprocess.check_output(["xdotool", "getactivewindow"], text=True).strip()
-        window_name = subprocess.check_output(["xdotool", "getwindowname", win_id], text=True).strip()
-        return window_name
+        result["name"] = subprocess.check_output(["xdotool", "getwindowname", win_id], text=True).strip()
+        # Get WM_CLASS via xprop
+        xprop_output = subprocess.check_output(["xprop", "-id", win_id, "WM_CLASS"], text=True).strip()
+        # Format: WM_CLASS(STRING) = "instance", "class"
+        if "=" in xprop_output:
+            class_part = xprop_output.split("=", 1)[1].strip()
+            # Extract both instance and class names
+            result["wm_class"] = class_part.replace('"', '').replace("'", "")
     except Exception as e:
-        print(f"Failed to get window name: {str(e)}")
-        return None
+        print(f"Failed to get window info: {str(e)}")
+    return result
+
+
+def get_active_window_name() -> Optional[str]:
+    """Get the name of the currently active window, or None if it cannot be determined.
+
+    Legacy wrapper around get_active_window_info() for backward compatibility.
+    """
+    return get_active_window_info()["name"]
 
 
 def load_context_config() -> List[Dict[str, Any]]:
@@ -226,20 +241,35 @@ def load_context_config() -> List[Dict[str, Any]]:
     return []
 
 
-def get_context_for_window(window_name: Optional[str]) -> Optional[str]:
+def _window_matches_pattern(pattern: str, window_info: Dict[str, Optional[str]]) -> bool:
+    """Check if window info matches a pattern (against name or WM_CLASS)."""
+    window_name = window_info.get("name")
+    wm_class = window_info.get("wm_class")
+
+    if window_name and re.search(pattern, window_name):
+        return True
+    if wm_class and re.search(pattern, wm_class):
+        return True
+    return False
+
+
+def get_context_for_window(window_info: Dict[str, Optional[str]]) -> Optional[str]:
     """
-    Determine if extra context should be provided based on the window name.
+    Determine if extra context should be provided based on window info.
+    Matches pattern against both window name and WM_CLASS.
     Returns the extra context to add or None if no rules match.
     """
-    if not window_name:
+    if not window_info.get("name") and not window_info.get("wm_class"):
         return None
 
     context_rules = load_context_config()
 
     for rule in context_rules:
         pattern = rule.get("window_pattern")
-        if pattern and re.search(pattern, window_name):
-            print(f"Window '{window_name}' matches pattern '{pattern}'")
+        if pattern and _window_matches_pattern(pattern, window_info):
+            window_name = window_info.get("name", "unknown")
+            wm_class = window_info.get("wm_class", "")
+            print(f"Window '{window_name}' (class: {wm_class}) matches pattern '{pattern}'")
             if "description" in rule:
                 print(f"Applying rule: {rule['description']}")
             return rule.get("extra_context")
@@ -247,21 +277,23 @@ def get_context_for_window(window_name: Optional[str]) -> Optional[str]:
     return None
 
 
-def get_paste_key_for_window(window_name: Optional[str]) -> str:
+def get_paste_key_for_window(window_info: Dict[str, Optional[str]]) -> str:
     """
-    Determine the paste key combination to use based on the window name.
+    Determine the paste key combination to use based on window info.
+    Matches pattern against both window name and WM_CLASS.
     Returns the paste key (default: "ctrl+v").
     """
-    if not window_name:
+    if not window_info.get("name") and not window_info.get("wm_class"):
         return "ctrl+v"
 
     context_rules = load_context_config()
 
     for rule in context_rules:
         pattern = rule.get("window_pattern")
-        if pattern and re.search(pattern, window_name):
+        if pattern and _window_matches_pattern(pattern, window_info):
             paste_key = rule.get("paste_key")
             if paste_key:
+                window_name = window_info.get("name", "unknown")
                 print(f"Using paste key '{paste_key}' for window '{window_name}'")
                 return paste_key
 
@@ -404,8 +436,9 @@ def transcribe_audio(wav_path: Path) -> str:
 
 def cleanup_text(raw_text: str, cleanup_enabled: bool) -> tuple:
     """Clean up text using LLM if enabled."""
-    # Get the active window name (always, for logging)
-    window_name = get_active_window_name()
+    # Get the active window info (always, for logging and context matching)
+    window_info = get_active_window_info()
+    window_name = window_info.get("name")
 
     if not cleanup_enabled:
         print("Cleanup disabled, using raw transcription")
@@ -421,7 +454,7 @@ def cleanup_text(raw_text: str, cleanup_enabled: bool) -> tuple:
     system_prompt = SYSTEM_PROMPT_CLEANUP
 
     # Check if any context rules match the current window
-    extra_context = get_context_for_window(window_name)
+    extra_context = get_context_for_window(window_info)
     if extra_context:
         print(f"Adding extra context for window: {window_name}")
         system_prompt += "\n\n" + extra_context
@@ -442,8 +475,8 @@ def cleanup_text(raw_text: str, cleanup_enabled: bool) -> tuple:
 
 def copy_and_paste(text: str) -> None:
     subprocess.run(["xclip", "-selection", "clipboard"], input=text.encode(), check=False)
-    window_name = get_active_window_name()
-    paste_key = get_paste_key_for_window(window_name)
+    window_info = get_active_window_info()
+    paste_key = get_paste_key_for_window(window_info)
     subprocess.run(["xdotool", "key", paste_key], check=False)
 
 
