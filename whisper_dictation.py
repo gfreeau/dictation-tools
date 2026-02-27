@@ -397,7 +397,7 @@ def transcribe_local(wav_path: Path) -> str:
     transcribe_time = time.time() - start
     print(f"Whisper result ({transcribe_time:.2f}s):", text)
 
-    return text
+    return text, transcribe_time
 
 
 def transcribe_api(wav_path: Path) -> str:
@@ -423,11 +423,11 @@ def transcribe_api(wav_path: Path) -> str:
     transcribe_time = time.time() - start
     print(f"Whisper result ({transcribe_time:.2f}s):", text)
 
-    return text
+    return text, transcribe_time
 
 
-def transcribe_audio(wav_path: Path) -> str:
-    """Transcribe audio using configured mode (local or API)."""
+def transcribe_audio(wav_path: Path) -> tuple:
+    """Transcribe audio using configured mode (local or API). Returns (text, transcribe_seconds)."""
     if WHISPER_MODE == "api":
         return transcribe_api(wav_path)
     else:
@@ -442,13 +442,13 @@ def cleanup_text(raw_text: str, cleanup_enabled: bool) -> tuple:
 
     if not cleanup_enabled:
         print("Cleanup disabled, using raw transcription")
-        return raw_text, window_name, False
+        return raw_text, window_name, False, 0.0
 
     # Get appropriate client for the configured model
     client, missing_key = get_cleanup_client()
     if not client:
         print(f"Warning: {missing_key} not set, skipping cleanup")
-        return raw_text, window_name, False
+        return raw_text, window_name, False, 0.0
 
     # Start with base system prompt
     system_prompt = SYSTEM_PROMPT_CLEANUP
@@ -459,6 +459,7 @@ def cleanup_text(raw_text: str, cleanup_enabled: bool) -> tuple:
         print(f"Adding extra context for window: {window_name}")
         system_prompt += "\n\n" + extra_context
 
+    cleanup_start = time.time()
     resp = client.chat.completions.create(
         model=CLEANUP_MODEL,
         messages=[
@@ -468,9 +469,10 @@ def cleanup_text(raw_text: str, cleanup_enabled: bool) -> tuple:
         temperature=0,
         top_p=0.05
     )
+    cleanup_time = time.time() - cleanup_start
     cleaned = resp.choices[0].message.content.strip()
-    print("Cleaned text:", cleaned)
-    return cleaned, window_name, extra_context is not None
+    print(f"Cleanup result ({cleanup_time:.2f}s):", cleaned)
+    return cleaned, window_name, extra_context is not None, cleanup_time
 
 
 def copy_and_paste(text: str) -> None:
@@ -480,14 +482,15 @@ def copy_and_paste(text: str) -> None:
     subprocess.run(["xdotool", "key", paste_key], check=False)
 
 
-def log_dictation(raw: str, cleaned: str, window_name: Optional[str], extra_context_applied: bool) -> None:
-    """Append a JSON line with raw & cleaned text and basic context information."""
+def log_dictation(raw: str, cleaned: str, window_name: Optional[str], extra_context_applied: bool,
+                   transcribe_seconds: float = 0.0, cleanup_seconds: float = 0.0) -> None:
+    """Append a JSON line with raw & cleaned text, context, and timing."""
     if not LOG_ENABLED:
         return
 
     try:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
-        
+
         entry = {
             "timestamp": datetime.datetime.utcnow().isoformat(timespec="seconds"),
             "whisper_mode": WHISPER_MODE,
@@ -495,6 +498,11 @@ def log_dictation(raw: str, cleaned: str, window_name: Optional[str], extra_cont
             "cleanup_model": CLEANUP_MODEL,
             "raw_text": raw,
             "cleaned_text": cleaned,
+            "timing": {
+                "transcribe_seconds": round(transcribe_seconds, 2),
+                "cleanup_seconds": round(cleanup_seconds, 2),
+                "total_seconds": round(transcribe_seconds + cleanup_seconds, 2)
+            },
             "context": {
                 "window_name": window_name or "Unknown",
                 "extra_context_applied": extra_context_applied
@@ -521,10 +529,13 @@ def record_stop(cleanup_enabled: bool) -> None:
     notify("Whisper Dictation", "Transcribing…", 2000)
 
     try:
-        raw_text = transcribe_audio(wav_path)
-        final_text, window_name, extra_context_applied = cleanup_text(raw_text, cleanup_enabled)
+        raw_text, transcribe_seconds = transcribe_audio(wav_path)
+        final_text, window_name, extra_context_applied, cleanup_seconds = cleanup_text(raw_text, cleanup_enabled)
+        total = transcribe_seconds + cleanup_seconds
+        print(f"Pipeline: transcribe={transcribe_seconds:.2f}s cleanup={cleanup_seconds:.2f}s total={total:.2f}s")
         # Persist raw & cleaned output for future evaluation
-        log_dictation(raw_text, final_text, window_name, extra_context_applied)
+        log_dictation(raw_text, final_text, window_name, extra_context_applied,
+                      transcribe_seconds, cleanup_seconds)
         copy_and_paste(final_text)
         notify("Whisper Dictation", "Finished!", 3000)
     except Exception as exc:
